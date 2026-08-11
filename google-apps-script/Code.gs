@@ -16,6 +16,8 @@
  * - Ordenes: todas las compras / pagos
  *
  * Tras cada cambio importante: Implementar > Administrar implementaciones > Editar > Nueva versión.
+ * Al subir comprobantes se crea la carpeta Drive "Comprobantes - La suerte de Valentina"
+ * (vuelve a autorizar Drive si el script lo pide).
  */
 
 const CONFIG_SHEET = 'Config'
@@ -34,7 +36,11 @@ const ORDER_HEADERS = [
   'proofFileName',
   'createdAt',
   'expiresAt',
+  'proofUrl',
 ]
+
+const PROOFS_FOLDER_NAME = 'Comprobantes - La suerte de Valentina'
+const MAX_PROOF_BYTES = 4 * 1024 * 1024
 
 function setupSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet()
@@ -65,7 +71,61 @@ function setupSheets() {
   orders.setFrozenRows(1)
   orders.getRange('C:C').setNumberFormat('@')
 
+  ensureOrdersHeaders_()
+  getProofsFolder_()
+
   SpreadsheetApp.getUi?.()?.alert?.('Hojas Config y Ordenes listas. Ya puedes desplegar la Web App.')
+}
+
+/** Asegura columnas nuevas (p. ej. proofUrl) sin romper hojas existentes. */
+function ensureOrdersHeaders_() {
+  const sheet = getOrdersSheet_()
+  const lastCol = Math.max(sheet.getLastColumn(), 1)
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(String)
+  ORDER_HEADERS.forEach(function (h) {
+    if (headers.indexOf(h) === -1) {
+      headers.push(h)
+      sheet.getRange(1, headers.length).setValue(h)
+    }
+  })
+  return headers
+}
+
+function getProofsFolder_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet()
+  const file = DriveApp.getFileById(ss.getId())
+  const parents = file.getParents()
+  const parent = parents.hasNext() ? parents.next() : DriveApp.getRootFolder()
+  const existing = parent.getFoldersByName(PROOFS_FOLDER_NAME)
+  if (existing.hasNext()) return existing.next()
+  return parent.createFolder(PROOFS_FOLDER_NAME)
+}
+
+function saveProofToDrive_(orderId, fileName, mimeType, base64) {
+  const name = String(fileName || '').trim()
+  const data = String(base64 || '').trim()
+  if (!name) throw new Error('Debes subir el comprobante de pago')
+  if (!data) throw new Error('Debes subir el comprobante de pago')
+
+  // base64 ocupa ~4/3 del tamaño del archivo
+  const approxBytes = Math.floor((data.length * 3) / 4)
+  if (approxBytes > MAX_PROOF_BYTES) {
+    throw new Error('El comprobante pesa demasiado (máx. 4 MB)')
+  }
+
+  const mime = String(mimeType || 'application/octet-stream')
+  const allowed =
+    mime.indexOf('image/') === 0 ||
+    mime === 'application/pdf' ||
+    /\.(jpe?g|png|gif|webp|pdf)$/i.test(name)
+  if (!allowed) throw new Error('Solo se permiten imágenes o PDF')
+
+  const bytes = Utilities.base64Decode(data)
+  const blob = Utilities.newBlob(bytes, mime, name)
+  const safeName = String(orderId + '_' + name).replace(/[^\w.\-+() ]/g, '_')
+  const file = getProofsFolder_().createFile(blob).setName(safeName)
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW)
+  return file.getUrl()
 }
 
 function doGet(e) {
@@ -182,6 +242,7 @@ function rowToOrder_(headers, row) {
     status: String(obj.status || 'pending_payment'),
     paymentMethod: obj.paymentMethod ? String(obj.paymentMethod) : undefined,
     proofFileName: obj.proofFileName ? String(obj.proofFileName) : undefined,
+    proofUrl: obj.proofUrl ? String(obj.proofUrl) : undefined,
     createdAt: String(obj.createdAt || ''),
     expiresAt: String(obj.expiresAt || ''),
   }
@@ -306,11 +367,13 @@ function createOrder_(body) {
     status: 'pending_payment',
     paymentMethod: '',
     proofFileName: '',
+    proofUrl: '',
     createdAt: new Date(now).toISOString(),
     expiresAt: new Date(now + reserveMinutes * 60 * 1000).toISOString(),
   }
 
   const sheet = getOrdersSheet_()
+  ensureOrdersHeaders_()
   const ticketsCol = ORDER_HEADERS.indexOf('tickets') + 1
   sheet.appendRow([
     order.id,
@@ -325,6 +388,7 @@ function createOrder_(body) {
     order.proofFileName,
     order.createdAt,
     order.expiresAt,
+    order.proofUrl,
   ])
   const lastRow = sheet.getLastRow()
   sheet.getRange(lastRow, ticketsCol).setNumberFormat('@').setValue(ticketsToCell_(order.tickets))
@@ -349,16 +413,32 @@ function attachPayment_(body) {
   const found = findOrderRow_(body.orderId)
   if (!found) return { ok: false, error: 'Orden no encontrada' }
 
+  const proofFileName = String(body.proofFileName || '').trim()
+  const proofBase64 = String(body.proofBase64 || '').trim()
+  const proofMimeType = String(body.proofMimeType || '').trim()
+  if (!proofFileName || !proofBase64) {
+    return { ok: false, error: 'Debes subir el comprobante de pago' }
+  }
+
+  let proofUrl
+  try {
+    proofUrl = saveProofToDrive_(body.orderId, proofFileName, proofMimeType, proofBase64)
+  } catch (err) {
+    return { ok: false, error: String(err.message || err) }
+  }
+
+  const headers = ensureOrdersHeaders_()
   const sheet = found.sheet
-  const headers = found.headers
   const rowIndex = found.rowIndex
   const order = found.order
   const methodIdx = headers.indexOf('paymentMethod')
   const proofIdx = headers.indexOf('proofFileName')
+  const proofUrlIdx = headers.indexOf('proofUrl')
   const statusIdx = headers.indexOf('status')
 
   sheet.getRange(rowIndex, methodIdx + 1).setValue(body.paymentMethod || 'mercadopago')
-  sheet.getRange(rowIndex, proofIdx + 1).setValue(body.proofFileName || 'comprobante')
+  sheet.getRange(rowIndex, proofIdx + 1).setValue(proofFileName)
+  if (proofUrlIdx >= 0) sheet.getRange(rowIndex, proofUrlIdx + 1).setValue(proofUrl)
   sheet.getRange(rowIndex, statusIdx + 1).setValue('proof_uploaded')
   SpreadsheetApp.flush()
 
@@ -372,7 +452,8 @@ function attachPayment_(body) {
       total: order.total,
       status: 'proof_uploaded',
       paymentMethod: body.paymentMethod || 'mercadopago',
-      proofFileName: body.proofFileName || 'comprobante',
+      proofFileName: proofFileName,
+      proofUrl: proofUrl,
       createdAt: order.createdAt,
       expiresAt: order.expiresAt,
     },
@@ -385,10 +466,14 @@ function updateStatus_(body) {
   const allowed = ['pending_payment', 'proof_uploaded', 'paid', 'expired', 'rejected']
   if (allowed.indexOf(body.status) === -1) return { ok: false, error: 'Estado no válido' }
 
-  const sheet = found.sheet
-  const headers = found.headers
-  const rowIndex = found.rowIndex
   const order = found.order
+  if (body.status === 'paid' && !(order.proofFileName || order.proofUrl)) {
+    return { ok: false, error: 'No se puede aprobar sin comprobante de pago' }
+  }
+
+  const sheet = found.sheet
+  const headers = ensureOrdersHeaders_()
+  const rowIndex = found.rowIndex
   const statusIdx = headers.indexOf('status')
   sheet.getRange(rowIndex, statusIdx + 1).setValue(body.status)
   SpreadsheetApp.flush()
@@ -404,6 +489,7 @@ function updateStatus_(body) {
       status: body.status,
       paymentMethod: order.paymentMethod,
       proofFileName: order.proofFileName,
+      proofUrl: order.proofUrl,
       createdAt: order.createdAt,
       expiresAt: order.expiresAt,
     },

@@ -73,7 +73,15 @@ export function AdminPage() {
                   <td>
                     <strong>{order.id}</strong>
                     <div className="muted" style={{ fontSize: '0.8rem' }}>
-                      {order.proofFileName || 'Sin comprobante'}
+                      {order.proofUrl ? (
+                        <a href={order.proofUrl} target="_blank" rel="noreferrer">
+                          Ver comprobante
+                        </a>
+                      ) : order.proofFileName ? (
+                        order.proofFileName
+                      ) : (
+                        'Sin comprobante'
+                      )}
                     </div>
                   </td>
                   <td>
@@ -92,7 +100,17 @@ export function AdminPage() {
                       <button
                         type="button"
                         className="btn btn--primary btn--sm"
-                        disabled={order.status === 'paid' || saving}
+                        disabled={
+                          order.status === 'paid' ||
+                          order.status !== 'proof_uploaded' ||
+                          !(order.proofFileName || order.proofUrl) ||
+                          saving
+                        }
+                        title={
+                          order.status !== 'proof_uploaded'
+                            ? 'Solo se aprueba con comprobante subido'
+                            : undefined
+                        }
                         onClick={() => void updateOrderStatus(order.id, 'paid')}
                       >
                         Aprobar

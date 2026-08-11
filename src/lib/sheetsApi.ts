@@ -1,4 +1,13 @@
-import type { Buyer, Order, OrderStatus, PaymentAccount, PaymentMethodType, Raffle, SiteConfig } from '../types'
+import type {
+  Buyer,
+  Order,
+  OrderStatus,
+  PaymentAccount,
+  PaymentMethodType,
+  ProofUpload,
+  Raffle,
+  SiteConfig,
+} from '../types'
 import { activeRaffle, paymentAccounts, seedOrders, siteConfig, takenTickets as seedTaken } from '../data/mock'
 
 const API_URL = (import.meta.env.VITE_SHEETS_API_URL as string | undefined)?.trim() || ''
@@ -24,7 +33,14 @@ function sleep(ms: number) {
 function isRetryableError(err: Error, data?: { error?: string; conflict?: unknown }) {
   if (data?.conflict) return false
   const msg = (data?.error || err.message || '').toLowerCase()
-  if (msg.includes('disponibles') || msg.includes('no encontrada') || msg.includes('no válida')) {
+  if (
+    msg.includes('disponibles') ||
+    msg.includes('no encontrada') ||
+    msg.includes('no válida') ||
+    msg.includes('comprobante') ||
+    msg.includes('solo se permiten') ||
+    msg.includes('aprobar')
+  ) {
     return false
   }
   if (msg.includes('ocupado')) return true
@@ -33,12 +49,18 @@ function isRetryableError(err: Error, data?: { error?: string; conflict?: unknow
   return true
 }
 
-async function sheetsFetch(url: string, init?: RequestInit) {
+async function sheetsFetch(
+  url: string,
+  init?: RequestInit,
+  options?: { timeoutMs?: number; maxRetries?: number },
+) {
+  const timeoutMs = options?.timeoutMs ?? REQUEST_TIMEOUT_MS
+  const maxRetries = options?.maxRetries ?? MAX_RETRIES
   let lastError: Error = new Error('No se pudo completar la solicitud')
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     const controller = new AbortController()
-    const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs)
 
     try {
       const res = await fetch(url, {
@@ -57,7 +79,7 @@ async function sheetsFetch(url: string, init?: RequestInit) {
 
       if (!res.ok || data?.ok === false) {
         const err = new Error(data?.error || 'No se pudo completar la solicitud')
-        if (!isRetryableError(err, data) || attempt === MAX_RETRIES - 1) {
+        if (!isRetryableError(err, data) || attempt === maxRetries - 1) {
           throw err
         }
         lastError = err
@@ -69,14 +91,14 @@ async function sheetsFetch(url: string, init?: RequestInit) {
       if (lastError.name === 'AbortError') {
         lastError = new Error('La solicitud tardó demasiado. Intenta de nuevo.')
       }
-      if (!isRetryableError(lastError) || attempt === MAX_RETRIES - 1) {
+      if (!isRetryableError(lastError) || attempt === maxRetries - 1) {
         throw lastError
       }
     } finally {
       window.clearTimeout(timer)
     }
 
-    await sleep(450 * 2 ** attempt)
+    await sleep(400 * (attempt + 1))
   }
 
   throw lastError
@@ -230,16 +252,30 @@ export async function apiCreateOrder(input: {
 export async function apiAttachPayment(
   orderId: string,
   paymentMethod: PaymentMethodType,
-  proofFileName: string,
+  proof: ProofUpload,
 ): Promise<Order> {
   if (!API_URL) {
     throw new Error('LOCAL_ONLY')
   }
-  const data = await sheetsFetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action: 'attachPayment', orderId, paymentMethod, proofFileName }),
-  })
+  if (!proof.fileName || !proof.base64) {
+    throw new Error('Debes subir el comprobante de pago')
+  }
+  const data = await sheetsFetch(
+    API_URL,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'attachPayment',
+        orderId,
+        paymentMethod,
+        proofFileName: proof.fileName,
+        proofMimeType: proof.mimeType,
+        proofBase64: proof.base64,
+      }),
+    },
+    { timeoutMs: 60000, maxRetries: 1 },
+  )
   return normalizeOrder((data as { order: Order }).order)
 }
 

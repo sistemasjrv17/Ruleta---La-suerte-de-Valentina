@@ -53,8 +53,15 @@ export interface Order {
   status: OrderStatus
   paymentMethod?: PaymentMethodType
   proofFileName?: string
+  proofUrl?: string
   createdAt: string
   expiresAt: string
+}
+
+export interface ProofUpload {
+  fileName: string
+  mimeType: string
+  base64: string
 }
 
 export interface SiteConfig {

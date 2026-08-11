@@ -10,7 +10,7 @@ export const siteConfig: SiteConfig = {
   whatsapp: '5218127542796',
   whatsappDisplay: '+52 1 81 2754 2796',
   paymentWarning:
-    'Después de apartar, tienes 20 minutos para subir tu comprobante. Los boletos sin pago se liberan automáticamente.',
+    'Después de apartar debes subir obligatoriamente tu comprobante de pago (máx. 4 MB). Tienes 20 minutos; sin comprobante los boletos se liberan.',
 }
 
 export const activeRaffle: Raffle = {

@@ -25,6 +25,7 @@ import type {
   OrderStatus,
   PaymentAccount,
   PaymentMethodType,
+  ProofUpload,
   Raffle,
   SiteConfig,
   TicketStatus,
@@ -54,7 +55,7 @@ interface StoreValue {
   assignRandomTickets: (count: number) => { tickets: number[]; requested: number; ok: boolean }
   setCartTickets: (tickets: number[]) => void
   createOrder: (buyer: Buyer) => Promise<Order | null>
-  attachPayment: (orderId: string, method: PaymentMethodType, proofFileName: string) => Promise<void>
+  attachPayment: (orderId: string, method: PaymentMethodType, proof: ProofUpload) => Promise<void>
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>
   findOrdersByPhone: (phone: string) => Promise<Order[]>
   calcTotal: (count: number) => number
@@ -290,24 +291,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const attachPayment = async (
-    orderId: string,
-    method: PaymentMethodType,
-    proofFileName: string,
-  ) => {
+  const attachPayment = async (orderId: string, method: PaymentMethodType, proof: ProofUpload) => {
+    if (!proof.fileName || !proof.base64) {
+      const msg = 'Debes subir el comprobante de pago'
+      setError(msg)
+      throw new Error(msg)
+    }
     if (!beginSave()) return
     try {
       if (!isSheetsConfigured()) {
         setOrders((prev) =>
           prev.map((o) =>
             o.id === orderId
-              ? { ...o, paymentMethod: method, proofFileName, status: 'proof_uploaded' as const }
+              ? {
+                  ...o,
+                  paymentMethod: method,
+                  proofFileName: proof.fileName,
+                  status: 'proof_uploaded' as const,
+                }
               : o,
           ),
         )
         return
       }
-      const order = await apiAttachPayment(orderId, method, proofFileName)
+      const order = await apiAttachPayment(orderId, method, proof)
       setOrders((prev) => prev.map((o) => (o.id === orderId ? order : o)))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo subir el comprobante')
