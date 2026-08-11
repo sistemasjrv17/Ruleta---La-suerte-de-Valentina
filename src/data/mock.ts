@@ -2,7 +2,7 @@ import type { Order, PaymentAccount, Raffle, SiteConfig } from '../types'
 
 const UNIT = 1
 
-const packageAmounts = [1, 2, 5, 10, 20, 50, 100]
+const packageAmounts = [1, 5, 10, 20, 50, 100]
 
 export const siteConfig: SiteConfig = {
   brand: 'La suerte de Valentina',

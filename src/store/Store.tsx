@@ -184,28 +184,55 @@ export function StoreProvider({ children }: { children: ReactNode }) {
    */
   const assignRandomTickets = useCallback(
     (count: number) => {
-      const requested = Math.max(0, Math.floor(Number(count) || 0))
+      const requested = Math.min(
+        raffle.totalTickets,
+        Math.max(0, Math.floor(Number(count) || 0)),
+      )
       if (requested <= 0) {
         setCart({ tickets: [] })
         return { tickets: [] as number[], requested, ok: false }
       }
 
       const blocked = buildBlockedSet()
-      const pool: number[] = []
-      for (let i = 0; i < raffle.totalTickets; i++) {
-        if (!blocked.has(i)) pool.push(i)
+      const freeCount = raffle.totalTickets - blocked.size
+      const take = Math.min(requested, Math.max(0, freeCount))
+
+      if (take <= 0) {
+        setCart({ tickets: [] })
+        return { tickets: [] as number[], requested, ok: false }
       }
 
-      const take = Math.min(requested, pool.length)
-      // Fisher–Yates parcial: primeros `take` quedan aleatorios y únicos
-      for (let i = 0; i < take; i++) {
-        const j = i + Math.floor(Math.random() * (pool.length - i))
-        const tmp = pool[i]
-        pool[i] = pool[j]
-        pool[j] = tmp
+      const picked = new Set<number>()
+
+      // Si hay muchos libres, muestreo por rechazo (rápido y sin duplicados)
+      if (freeCount > take * 4) {
+        let guard = 0
+        const maxGuard = take * 40 + 200
+        while (picked.size < take && guard < maxGuard) {
+          guard++
+          const n = Math.floor(Math.random() * raffle.totalTickets)
+          if (blocked.has(n) || picked.has(n)) continue
+          picked.add(n)
+        }
       }
 
-      const tickets = pool.slice(0, take).sort((a, b) => a - b)
+      // Fallback / completar: pool compacto Fisher–Yates
+      if (picked.size < take) {
+        const pool: number[] = []
+        for (let i = 0; i < raffle.totalTickets; i++) {
+          if (!blocked.has(i) && !picked.has(i)) pool.push(i)
+        }
+        const need = take - picked.size
+        for (let i = 0; i < need; i++) {
+          const j = i + Math.floor(Math.random() * (pool.length - i))
+          const tmp = pool[i]
+          pool[i] = pool[j]
+          pool[j] = tmp
+          picked.add(pool[i])
+        }
+      }
+
+      const tickets = Array.from(picked).sort((a, b) => a - b)
       setCart({ tickets })
       return { tickets, requested, ok: tickets.length === requested }
     },

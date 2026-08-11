@@ -6,6 +6,15 @@ echo ============================================
 echo  La suerte de Valentina - Commit y Push
 echo ============================================
 echo.
+echo Repo: https://github.com/sistemasjrv17/Ruleta---La-suerte-de-Valentina
+echo.
+echo IMPORTANTE: debes estar autenticado en GitHub como "sistemasjrv17".
+echo Si usas otra cuenta ^(ej. SistemasTSJavier^), el push dara 403.
+echo   Solucion rapida:
+echo     gh auth login
+echo     ^(elige GitHub.com, HTTPS, login sistemasjrv17^)
+echo ============================================
+echo.
 
 where git >nul 2>&1
 if errorlevel 1 (
@@ -61,7 +70,12 @@ echo Subiendo a GitHub (main)...
 git push -u origin main
 if errorlevel 1 (
   echo.
-  echo ERROR al hacer push. Revisa tu sesion de GitHub ^(`gh auth login` o credenciales^).
+  echo ERROR 403 / push fallido.
+  echo 1^) Ejecuta: gh auth login
+  echo 2^) Inicia sesion con la cuenta sistemasjrv17
+  echo 3^) Vuelve a correr este .bat
+  echo.
+  echo O agrega a SistemasTSJavier como colaborador del repo en GitHub.
   pause
   exit /b 1
 )

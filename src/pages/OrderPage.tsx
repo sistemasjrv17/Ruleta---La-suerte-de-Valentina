@@ -34,6 +34,7 @@ export function OrderPage() {
   const [fileName, setFileName] = useState('')
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
+  const [showAllTickets, setShowAllTickets] = useState(false)
   const method: PaymentMethodType = 'mercadopago'
 
   const remainingMs = useMemo(() => {
@@ -55,6 +56,10 @@ export function OrderPage() {
 
   const minutes = Math.ceil(remainingMs / 60000)
   const filteredAccounts = accounts.filter((a) => a.type === method)
+  const previewCount = 24
+  const sortedTickets = [...order.tickets].sort((a, b) => a - b)
+  const visibleTickets = showAllTickets ? sortedTickets : sortedTickets.slice(0, previewCount)
+  const hiddenCount = Math.max(0, sortedTickets.length - previewCount)
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -69,7 +74,7 @@ export function OrderPage() {
   }
 
   return (
-    <div className="stack">
+    <div className="stack checkout">
       <div className="section__head">
         <div>
           <span className="eyebrow">Orden {order.id}</span>
@@ -81,20 +86,31 @@ export function OrderPage() {
         <span className={badgeClass(order.status)}>{statusLabel(order.status)}</span>
       </div>
 
-      <div className="grid-2">
+      <div className="checkout__layout">
         <div className="stack">
           <div className="panel panel--pad stack">
-            <h2>Tus boletos</h2>
-            <div className="chip-row">
-              {order.tickets.map((n) => (
-                <span className="chip" key={n} style={{ background: 'rgba(255,79,163,.12)', color: 'var(--ink)' }}>
-                  {formatTicket(n, raffle.digits)}
-                </span>
-              ))}
-            </div>
-            <p>
+            <h2>Tus boletos ({order.tickets.length})</h2>
+            <p style={{ margin: 0 }}>
               Total a pagar: <strong>${order.total} MXN</strong>
             </p>
+            <div className={`checkout__tickets ${showAllTickets ? 'is-expanded' : ''}`}>
+              <div className="chip-row">
+                {visibleTickets.map((n) => (
+                  <span className="chip chip--ticket" key={n}>
+                    {formatTicket(n, raffle.digits)}
+                  </span>
+                ))}
+              </div>
+            </div>
+            {hiddenCount > 0 && (
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                onClick={() => setShowAllTickets((v) => !v)}
+              >
+                {showAllTickets ? 'Ver menos' : `Ver los ${sortedTickets.length} boletos`}
+              </button>
+            )}
             {order.status === 'pending_payment' && (
               <div className="alert">
                 Tiempo restante aproximado: {minutes} min. {site.paymentWarning}
@@ -138,7 +154,7 @@ export function OrderPage() {
 
         <aside className="stack">
           {filteredAccounts.map((acc) => (
-            <div className="account-card" key={acc.id}>
+            <div className="account-card panel panel--pad" key={acc.id}>
               <h3>{acc.bank}</h3>
               <div className="copy-row">
                 <span className="muted">Titular</span> <strong>{acc.name}</strong>

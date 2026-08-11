@@ -83,7 +83,7 @@ async function sheetsFetch(url: string, init?: RequestInit) {
 }
 
 function packagesFromPrice(ticketPrice: number) {
-  return [1, 2, 5, 10, 20, 50, 100].map((amount) => ({
+  return [1, 5, 10, 20, 50, 100].map((amount) => ({
     amount,
     price: amount * ticketPrice,
     label: amount === 1 ? '1 boleto' : `${amount} boletos`,

@@ -16,28 +16,50 @@ export function TicketsPage() {
     assignRandomTickets,
     getTicketStatus,
     calcTotal,
+    loading,
   } = useStore()
+
+  const packages = useMemo(
+    () => raffle.packages.filter((p) => p.amount !== 2),
+    [raffle.packages],
+  )
+
+  const initialQty = (() => {
+    const q = Number(params.get('qty') || 5)
+    if (!Number.isFinite(q) || q <= 0) return 5
+    if (q === 2) return 5
+    return Math.min(q, raffle.totalTickets)
+  })()
 
   const [mode, setMode] = useState<'manual' | 'random'>(
     params.get('mode') === 'random' ? 'random' : 'manual',
   )
   const [page, setPage] = useState(0)
   const [search, setSearch] = useState('')
-  const [qty, setQty] = useState(Number(params.get('qty') || 5))
+  const [qty, setQty] = useState(initialQty)
+  const [customQty, setCustomQty] = useState(String(initialQty))
   const [spinning, setSpinning] = useState(false)
   const [lastRandom, setLastRandom] = useState<number[]>([])
   const [pickError, setPickError] = useState('')
   const [autoDone, setAutoDone] = useState(false)
 
-  const maxPage = Math.ceil(raffle.totalTickets / PAGE_SIZE) - 1
+  const maxPage = Math.max(0, Math.ceil(raffle.totalTickets / PAGE_SIZE) - 1)
 
   const pageTickets = useMemo(() => {
     const start = page * PAGE_SIZE
     return Array.from({ length: Math.min(PAGE_SIZE, raffle.totalTickets - start) }, (_, i) => start + i)
   }, [page, raffle.totalTickets])
 
+  const clampQty = (value: number) => {
+    if (!Number.isFinite(value)) return 1
+    return Math.min(raffle.totalTickets, Math.max(1, Math.floor(value)))
+  }
+
   const runRandomAssign = (amount: number) => {
-    const result = assignRandomTickets(amount)
+    const safe = clampQty(amount)
+    const result = assignRandomTickets(safe)
+    setQty(safe)
+    setCustomQty(String(safe))
     setLastRandom(result.tickets)
     if (!result.ok) {
       setPickError(
@@ -52,37 +74,46 @@ export function TicketsPage() {
   }
 
   useEffect(() => {
-    if (autoDone) return
+    if (autoDone || loading) return
     const q = Number(params.get('qty') || 0)
     if (params.get('mode') === 'random' && q > 0) {
       setMode('random')
-      setQty(q)
-      runRandomAssign(q)
+      runRandomAssign(q === 2 ? 5 : q)
       setAutoDone(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params, autoDone])
+  }, [params, autoDone, loading])
 
-  const pickRandom = () => {
+  const pickRandom = (amount = qty) => {
     if (spinning) return
+    const safe = clampQty(amount)
     setSpinning(true)
     setPickError('')
     window.setTimeout(() => {
-      runRandomAssign(qty)
+      runRandomAssign(safe)
       setSpinning(false)
-    }, 550)
+    }, 450)
   }
 
   const selectPackage = (amount: number) => {
-    setQty(amount)
-    setPickError('')
-    // Al elegir paquete, asigna ya esa cantidad exacta
-    runRandomAssign(amount)
+    pickRandom(amount)
+  }
+
+  const assignCustomQty = () => {
+    const parsed = Number(customQty)
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      setPickError('Escribe una cantidad válida (mínimo 1).')
+      return
+    }
+    pickRandom(parsed)
   }
 
   const trySearch = () => {
     const n = Number(search)
-    if (Number.isNaN(n) || n < 0 || n >= raffle.totalTickets) return
+    if (Number.isNaN(n) || n < 0 || n >= raffle.totalTickets) {
+      setPickError(`Escribe un número entre 0 y ${raffle.totalTickets - 1}.`)
+      return
+    }
     setPage(Math.floor(n / PAGE_SIZE))
     const ok = addTicket(n)
     if (!ok) setPickError('Ese boleto no está disponible o ya lo tienes.')
@@ -90,8 +121,12 @@ export function TicketsPage() {
   }
 
   const total = calcTotal(cart.tickets.length)
-  const uniqueCount = new Set(cart.tickets).size
-  const hasDupes = uniqueCount !== cart.tickets.length
+  const uniqueTickets = useMemo(
+    () => [...new Set(cart.tickets)].sort((a, b) => a - b),
+    [cart.tickets],
+  )
+  const hasDupes = uniqueTickets.length !== cart.tickets.length
+  const estimatedCustomTotal = clampQty(Number(customQty) || 0) * raffle.ticketPrice
 
   return (
     <div className="stack">
@@ -104,10 +139,24 @@ export function TicketsPage() {
           </p>
         </div>
         <div className="mode-toggle">
-          <button type="button" className={mode === 'manual' ? 'is-active' : ''} onClick={() => setMode('manual')}>
+          <button
+            type="button"
+            className={mode === 'manual' ? 'is-active' : ''}
+            onClick={() => {
+              setMode('manual')
+              setPickError('')
+            }}
+          >
             Uno por uno
           </button>
-          <button type="button" className={mode === 'random' ? 'is-active' : ''} onClick={() => setMode('random')}>
+          <button
+            type="button"
+            className={mode === 'random' ? 'is-active' : ''}
+            onClick={() => {
+              setMode('random')
+              setPickError('')
+            }}
+          >
             Al azar / ruleta
           </button>
         </div>
@@ -124,7 +173,7 @@ export function TicketsPage() {
           <i style={{ background: '#fff7ed' }} /> Reservado
         </span>
         <span>
-          <i style={{ background: '#ecfdf5' }} /> Pagado
+          <i style={{ background: '#eff6ff' }} /> Pagado
         </span>
       </div>
 
@@ -132,25 +181,65 @@ export function TicketsPage() {
         <div className="panel panel--pad stack">
           <h2>Ruleta de números</h2>
           <p className="muted" style={{ marginTop: 0 }}>
-            Escoge un paquete: te asignamos exactamente esa cantidad de números disponibles, sin
-            repetir.
+            Elige un paquete o escribe cuántos quieres: te damos exactamente esa cantidad al azar,
+            sin repetir.
           </p>
+
           <div className="price-grid">
-            {raffle.packages.map((p) => (
+            {packages.map((p) => (
               <button
                 key={p.amount}
                 type="button"
                 className={`price-card ${qty === p.amount ? 'is-active' : ''}`}
                 onClick={() => selectPackage(p.amount)}
-                disabled={spinning}
+                disabled={spinning || loading}
               >
                 <strong>{p.amount}</strong>
                 <span>${p.price} MXN</span>
               </button>
             ))}
           </div>
+
+          <div className="random-custom panel panel--pad">
+            <div className="random-custom__row">
+              <div className="field" style={{ flex: 1, minWidth: 160 }}>
+                <label htmlFor="custom-qty">Cantidad manual</label>
+                <input
+                  id="custom-qty"
+                  type="number"
+                  min={1}
+                  max={raffle.totalTickets}
+                  inputMode="numeric"
+                  value={customQty}
+                  disabled={spinning || loading}
+                  onChange={(e) => setCustomQty(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && assignCustomQty()}
+                  placeholder="Ej. 7, 15, 33…"
+                />
+              </div>
+              <div className="random-custom__actions">
+                <span className="muted random-custom__price">
+                  Total approx: <strong>${estimatedCustomTotal} MXN</strong>
+                </span>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={assignCustomQty}
+                  disabled={spinning || loading}
+                >
+                  Asignar al azar
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button type="button" className="btn btn--gold" onClick={pickRandom} disabled={spinning}>
+            <button
+              type="button"
+              className="btn btn--gold"
+              onClick={() => pickRandom(qty)}
+              disabled={spinning || loading || qty < 1}
+            >
               {spinning ? 'Girando…' : `Volver a girar (${qty})`}
             </button>
             <button
@@ -172,7 +261,9 @@ export function TicketsPage() {
               </span>
             )}
           </div>
+
           {pickError && <div className="alert">{pickError}</div>}
+
           {lastRandom.length > 0 && (
             <div>
               <h3>Números asignados ({lastRandom.length})</h3>
@@ -208,7 +299,7 @@ export function TicketsPage() {
               Agregar
             </button>
           </div>
-          {pickError && mode === 'manual' && <div className="alert">{pickError}</div>}
+          {pickError && <div className="alert">{pickError}</div>}
 
           <div className="ticket-grid">
             {pageTickets.map((n) => {
@@ -266,22 +357,20 @@ export function TicketsPage() {
           <div className="cart-dock__inner">
             <div className="stack" style={{ gap: '0.45rem', flex: 1 }}>
               <strong>
-                {cart.tickets.length} boleto{cart.tickets.length === 1 ? '' : 's'} · ${total} MXN
-                {hasDupes ? ' · (corrigiendo duplicados…)' : ''}
+                {uniqueTickets.length} boleto{uniqueTickets.length === 1 ? '' : 's'} · ${total} MXN
               </strong>
               <div className="chip-row">
-                {[...new Set(cart.tickets)]
-                  .sort((a, b) => a - b)
-                  .slice(0, 16)
-                  .map((n) => (
-                    <span className="chip" key={n}>
-                      {formatTicket(n, raffle.digits)}
-                      <button type="button" aria-label="Quitar" onClick={() => removeTicket(n)}>
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                {cart.tickets.length > 16 && <span className="chip">+{cart.tickets.length - 16}</span>}
+                {uniqueTickets.slice(0, 16).map((n) => (
+                  <span className="chip" key={n}>
+                    {formatTicket(n, raffle.digits)}
+                    <button type="button" aria-label="Quitar" onClick={() => removeTicket(n)}>
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {uniqueTickets.length > 16 && (
+                  <span className="chip">+{uniqueTickets.length - 16}</span>
+                )}
               </div>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -299,7 +388,7 @@ export function TicketsPage() {
               <button
                 type="button"
                 className="btn btn--gold"
-                disabled={cart.tickets.length === 0 || hasDupes}
+                disabled={uniqueTickets.length === 0 || hasDupes || spinning}
                 onClick={() => navigate('/checkout')}
               >
                 Continuar
