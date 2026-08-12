@@ -257,6 +257,37 @@ main {
   flex-wrap: wrap;
   gap: 0.75rem;
   justify-content: space-between;
+  align-items: center;
+}
+
+.site-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem 1.25rem;
+  align-items: center;
+}
+
+.site-footer__links a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.site-footer__links a:hover {
+  color: var(--sky-deep);
+}
+
+.social-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.social-link--whatsapp:hover {
+  color: #128c7e;
+}
+
+.social-link--facebook:hover {
+  color: #1877f2;
 }
 
 .btn {
@@ -298,6 +329,18 @@ main {
   background: transparent;
   border: 1px solid var(--line);
   color: var(--ink);
+}
+
+.btn--whatsapp {
+  background: #25d366;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(37, 211, 102, 0.28);
+}
+
+.btn--facebook {
+  background: #1877f2;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(24, 119, 242, 0.28);
 }
 
 .btn--danger {
@@ -1230,6 +1273,64 @@ th {
   font-variant-numeric: tabular-nums;
 }
 
+.account-card--highlight {
+  border-color: rgba(91, 176, 232, 0.45);
+  background: rgba(201, 235, 255, 0.4);
+}
+
+.copy-row--card {
+  justify-content: space-between;
+}
+
+.copy-row--card strong {
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+
+.order-pay {
+  max-width: 720px;
+}
+
+.order-pay__method h2,
+.order-pay__proof h2 {
+  margin: 0;
+}
+
+.proof-drop {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  padding: 1rem;
+  border: 2px dashed rgba(91, 176, 232, 0.55);
+  border-radius: var(--radius);
+  background: rgba(232, 245, 255, 0.55);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.proof-drop input[type='file'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.proof-drop__hint {
+  color: var(--muted);
+  text-align: center;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.proof-drop__preview {
+  max-width: 100%;
+  max-height: 260px;
+  object-fit: contain;
+  border-radius: 12px;
+  pointer-events: none;
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;
@@ -1260,4 +1361,22 @@ th {
   background: linear-gradient(90deg, var(--sky), var(--pink));
   border-radius: inherit;
   transition: width 0.5s ease;
+}
+
+.rules__block h2,
+.rules__contact h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.rules__block p {
+  margin: 0;
+  line-height: 1.65;
+  color: var(--ink);
+}
+
+.rules__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }

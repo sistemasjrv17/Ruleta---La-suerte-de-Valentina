@@ -69,5 +69,6 @@ export interface SiteConfig {
   tagline: string
   whatsapp: string
   whatsappDisplay: string
+  facebookUrl: string
   paymentWarning: string
 }

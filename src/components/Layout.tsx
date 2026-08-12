@@ -1,11 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { BrandMark } from './BrandMark'
+import { FacebookIcon, WhatsAppIcon } from './SocialIcons'
 import { useStore } from '../store/Store'
 
 const links = [
   { to: '/', label: 'Inicio' },
   { to: '/boletos', label: 'Boletos' },
   { to: '/pagos', label: 'Pagos' },
+  { to: '/reglas', label: 'Reglas' },
   { to: '/verificar', label: 'Verificar' },
 ]
 
@@ -45,9 +47,27 @@ export function Layout() {
             <img src="/mono.jpeg" alt="" className="brand-mark__bow brand-mark__bow--sm" />
             <span>— rifa en línea</span>
           </span>
-          <a href={`https://wa.me/${site.whatsapp}`} target="_blank" rel="noreferrer">
-            WhatsApp: {site.whatsappDisplay}
-          </a>
+          <div className="site-footer__links">
+            <a
+              className="social-link social-link--whatsapp"
+              href={`https://wa.me/${site.whatsapp}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <WhatsAppIcon />
+              <span>{site.whatsappDisplay}</span>
+            </a>
+            <a
+              className="social-link social-link--facebook"
+              href={site.facebookUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <FacebookIcon />
+              <span>Facebook</span>
+            </a>
+            <NavLink to="/reglas">Reglas</NavLink>
+          </div>
         </div>
       </footer>
     </div>

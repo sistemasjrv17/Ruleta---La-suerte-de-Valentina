@@ -1,0 +1,12 @@
+# SPA (React Router) — Hostinger / Apache
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Si el archivo o carpeta existe, sírvelo tal cual
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+
+  # Todo lo demás va a index.html
+  RewriteRule ^ index.html [L]
+</IfModule>

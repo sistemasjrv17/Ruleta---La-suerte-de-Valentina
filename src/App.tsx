@@ -6,6 +6,7 @@ import { CheckoutPage } from './pages/CheckoutPage'
 import { HomePage } from './pages/HomePage'
 import { OrderPage } from './pages/OrderPage'
 import { PaymentsPage } from './pages/PaymentsPage'
+import { RulesPage } from './pages/RulesPage'
 import { TicketsPage } from './pages/TicketsPage'
 import { VerifyPage } from './pages/VerifyPage'
 import { StoreProvider } from './store/Store'
@@ -24,6 +25,7 @@ export default function App() {
             <Route path="checkout" element={<CheckoutPage />} />
             <Route path="orden/:orderId" element={<OrderPage />} />
             <Route path="pagos" element={<PaymentsPage />} />
+            <Route path="reglas" element={<RulesPage />} />
             <Route path="verificar" element={<VerifyPage />} />
             <Route
               path={ADMIN_PATH}

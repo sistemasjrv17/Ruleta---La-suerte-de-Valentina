@@ -9,6 +9,7 @@ export const siteConfig: SiteConfig = {
   tagline: 'Tu número. Tu momento. Tu suerte.',
   whatsapp: '5218127542796',
   whatsappDisplay: '+52 1 81 2754 2796',
+  facebookUrl: 'https://www.facebook.com/',
   paymentWarning:
     'Después de apartar debes subir obligatoriamente tu comprobante de pago (máx. 4 MB). Tienes 20 minutos; sin comprobante los boletos se liberan.',
 }
